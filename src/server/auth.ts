@@ -20,15 +20,22 @@ declare module "next-auth" {
   interface Session extends DefaultSession {
     user: DefaultSession["user"] & {
       id: string;
+      accessToken: string;
+      userName: string;
       // ...other properties
       // role: UserRole;
     };
   }
 
-  // interface User {
-  //   // ...other properties
-  //   // role: UserRole;
-  // }
+  interface User {
+    // ...other properties
+    // role: UserRole;
+    userName: string;
+  }
+
+  interface Profile {
+    login: string
+  }
 }
 
 /**
@@ -37,14 +44,33 @@ declare module "next-auth" {
  * @see https://next-auth.js.org/configuration/options
  */
 export const authOptions: NextAuthOptions = {
+  secret: env.NEXTAUTH_SECRET,
+  session: {
+    strategy: "database",
+  },
   callbacks: {
-    session: ({ session, user }) => ({
-      ...session,
-      user: {
-        ...session.user,
-        id: user.id,
-      },
-    }),
+    signIn: ({profile, user}) => {
+      if(profile) {
+        user.userName = profile.login
+        console.log('login',user)
+      }
+      return true
+    },
+    session: async ({ session, user }) => {
+      console.log(user, session)
+      const id = user.id
+      const account = await db.account.findFirst({ where: { userId: id } })
+      return ({
+        ...session,
+        user: {
+          ...session.user,
+          id: user.id,
+          accessToken: account!.access_token,
+          userName: user.userName
+        },
+      })
+    },
+    
   },
   adapter: PrismaAdapter(db),
   providers: [
